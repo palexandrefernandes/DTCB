@@ -121,26 +121,30 @@ const setupBot = () => {
             if (msg.content === CHANNEL_TRACK) {
                 trackChannel(msg.channel.id);
                 msg.channel.send('Sending stream clips to this channel!');
-            } else if(msg.content.includes(USER_TRACK)) {
-                trackUser(msg.channel.id, msg.content.slice(USER_TRACK.length + 1))
-                    .then(() => {
-                        msg.channel.send(`Tracking user ${msg.content.slice(USER_TRACK.length + 1)} Twitch clips!`);
-                    })
-                    .catch(err => {
-                        msg.channel.send(err.message);
-                    });
-            } else if (msg.content === CHANNEL_UNTRACK) {
-                untrackChannel(msg.channel.id);
-                msg.channel.send('No more clips will be sent to this channel.');
-            } else if (msg.content.includes(USER_UNTRACK)) {
-                const user = msg.content.slice(USER_UNTRACK + 1);
-                untrackUser(msg.channel.id, user);
-                msg.channel.send(`${user} Twitch clips are not being tracked anymore.`);
-            } else if (msg.content === TRACKIN_WHO) {
-                if (trackingChannels[msg.channel.id].length === 0) {
-                    msg.channel.send(`No one is currently being tracked.`);
-                } else {
-                    msg.channel.send(`Tracking ${trackingChannels[msg.channel.id].map(item => item.name).join(', ')}.`);
+            }
+            // Commands that require the setup method
+            if (trackingChannels[msg.channel.id] != null) {
+                if(msg.content.includes(USER_TRACK)) {
+                    trackUser(msg.channel.id, msg.content.slice(USER_TRACK.length + 1))
+                        .then(() => {
+                            msg.channel.send(`Tracking user ${msg.content.slice(USER_TRACK.length + 1)} Twitch clips!`);
+                        })
+                        .catch(err => {
+                            msg.channel.send(err.message);
+                        });
+                } else if (msg.content === CHANNEL_UNTRACK) {
+                    untrackChannel(msg.channel.id);
+                    msg.channel.send('No more clips will be sent to this channel.');
+                } else if (msg.content.includes(USER_UNTRACK)) {
+                    const user = msg.content.slice(USER_UNTRACK + 1);
+                    untrackUser(msg.channel.id, user);
+                    msg.channel.send(`${user} Twitch clips are not being tracked anymore.`);
+                } else if (msg.content === TRACKIN_WHO) {
+                    if (trackingChannels[msg.channel.id].length === 0) {
+                        msg.channel.send(`No one is currently being tracked.`);
+                    } else {
+                        msg.channel.send(`Tracking ${trackingChannels[msg.channel.id].map(item => item.name).join(', ')}.`);
+                    }
                 }
             }
         }
