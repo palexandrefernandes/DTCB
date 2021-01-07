@@ -4,15 +4,13 @@ const fs = require('fs').promises;
 const path = require('path');
 const { ApiClient } = require('twitch');
 const { ClientCredentialsAuthProvider } = require('twitch-auth');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const FILE = path.resolve(`${__dirname}/mem.json`);
 // const TIMER = 60 * 1000 * 5;
 const TIMER = 1000 * 5;
-
-// Credentials
-const DISCORD_TOKEN = 'Nzk2MDkzMDM5Njc5MzczMzEy.X_S5aw.uYh9OGtXm1QYac0Xn5fkQRroE1g';
-const TWITCH_ID = 'eu9kgivuvogjy8ks9hf9fq41fs9tzn';
-const TWITCH_SECRET = '1d6iepfcb46ksuyhsktwd1nzle6gum';
 
 // Commands
 const CHANNEL_TRACK = '>setup';
@@ -23,9 +21,9 @@ const TRACKIN_WHO = '>who';
 
 // Startup
 let trackingChannels = {};
-const authProvider = new ClientCredentialsAuthProvider(TWITCH_ID, TWITCH_SECRET);
+const authProvider = new ClientCredentialsAuthProvider(process.env.TWITCH_ID, process.env.TWITCH_SECRET);
 const apiClient = new ApiClient({ authProvider });
-client.login(DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN);
 
 // Channel and user related functions
 const trackChannel = (channel) => {
@@ -44,6 +42,7 @@ const trackUser = async (channel, user) => {
                             lastClip: getLatestClip(clips.data).creationDate.getTime()
                         });
                     })
+                    .catch(err => console.log(err));
                 return res.data[0].name;
             } else {
                 throw new Error('No channel found with the provided name.');
@@ -63,7 +62,9 @@ const untrackChannel = (channelID) => {
 
 
 const sendMessageToChannel = (channelID, message) => {
-    client.channels.fetch(channelID).then(channel => channel.send(message));
+    client.channels.fetch(channelID)
+        .then(channel => channel.send(message))
+        .console.log(err);
 };
 
 const getLatestClip = (clips) => {
@@ -81,6 +82,7 @@ const notifyIfHasNewClip = () => {
                         sendMessageToChannel(channelID, latestClip.url);
                     }
                 })
+                .catch(err => console.log(err));
         });
     });
 };
@@ -135,7 +137,11 @@ const setupBot = () => {
                 untrackUser(msg.channel.id, user);
                 msg.channel.send(`${user} Twitch clips are not being tracked anymore.`);
             } else if (msg.content === TRACKIN_WHO) {
-                msg.channel.send(`Tracking ${trackingChannels[msg.channel.id].map(item => item.name).join(', ')}.`);
+                if (trackingChannels[msg.channel.id].length === 0) {
+                    msg.channel.send(`No one is currently being tracked.`);
+                } else {
+                    msg.channel.send(`Tracking ${trackingChannels[msg.channel.id].map(item => item.name).join(', ')}.`);
+                }
             }
         }
     });
