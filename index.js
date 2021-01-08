@@ -9,8 +9,8 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const FILE = path.resolve(`${__dirname}/mem.json`);
-// const TIMER = 60 * 1000 * 5;
-const TIMER = 1000 * 5;
+const TIMER = 60 * 1000 * Number(process.env.TIMER);
+
 
 // Commands
 const CHANNEL_TRACK = '>setup';
@@ -20,7 +20,7 @@ const USER_UNTRACK = '>untrack';
 const TRACKIN_WHO = '>who';
 
 // Startup
-let trackingChannels = {};
+let trackingChannels = null;
 const authProvider = new ClientCredentialsAuthProvider(process.env.TWITCH_ID, process.env.TWITCH_SECRET);
 const apiClient = new ApiClient({ authProvider });
 client.login(process.env.DISCORD_TOKEN);
@@ -53,7 +53,7 @@ const trackUser = async (channel, user) => {
 const untrackUser = (channelID, username) => {
     const channel = trackingChannels[channelID];
     const updatedList = channel.filter(item => item.name !== username);
-    trackingChannels.set(channelID, updatedList);
+    trackingChannels[channelID] = updatedList;
 };
 
 const untrackChannel = (channelID) => {
@@ -64,26 +64,40 @@ const untrackChannel = (channelID) => {
 const sendMessageToChannel = (channelID, message) => {
     client.channels.fetch(channelID)
         .then(channel => channel.send(message))
-        .console.log(err);
 };
 
 const getLatestClip = (clips) => {
     return clips.sort((a, b) => a.creationDate.getTime() < b.creationDate.getTime() ? 1 : -1)[0];
 };
 
+const getNewClips = (clips, lastClipTime) => {
+    return clips.filter(clip => clip.creationDate.getTime() > lastClipTime);
+};
+
+const getTwitchDateFilter = () => {
+    const date = new Date();
+    date.setHours(date.getHours(), date.getMinutes(), 0);
+    return date;
+};
+
 const notifyIfHasNewClip = () => {
+    const date = getTwitchDateFilter().toISOString();
+
     Object.keys(trackingChannels).forEach(channelID => {
-        trackingChannels[channelID].forEach(user => {
-            apiClient.helix.clips.getClipsForBroadcaster(user.id)
-                .then(clips => {
-                    const latestClip = getLatestClip(clips.data);
-                    if (user.lastClip == null || latestClip.creationDate.getTime() < user.lastClip) {
-                        user.lastClip = latestClip.creationDate.getTime();
-                        sendMessageToChannel(channelID, latestClip.url);
-                    }
-                })
-                .catch(err => console.log(err));
-        });
+        if (trackingChannels[channelID].length && trackingChannels[channelID].length > 0){
+            trackingChannels[channelID].forEach(user => {
+                apiClient.helix.clips.getClipsForBroadcaster(user.id, {startDate: date ,limit: 100})
+                    .then(clips => {
+                        const newClips = getNewClips(clips.data, user.lastClip);
+                        console.log(newClips.length);
+                        if (user.lastClip == null || newClips.length !== 0) {
+                            user.lastClip = getLatestClip(newClips).creationDate.getTime();
+                            newClips.forEach(clip =>  sendMessageToChannel(channelID, clip.url));
+                        }
+                    })
+                    .catch(err => console.log(err));
+            });
+        }
     });
 };
 
@@ -136,7 +150,7 @@ const setupBot = () => {
                     untrackChannel(msg.channel.id);
                     msg.channel.send('No more clips will be sent to this channel.');
                 } else if (msg.content.includes(USER_UNTRACK)) {
-                    const user = msg.content.slice(USER_UNTRACK + 1);
+                    const user = msg.content.slice(USER_UNTRACK.length + 1);
                     untrackUser(msg.channel.id, user);
                     msg.channel.send(`${user} Twitch clips are not being tracked anymore.`);
                 } else if (msg.content === TRACKIN_WHO) {
@@ -150,7 +164,11 @@ const setupBot = () => {
         }
     });
 
-    setInterval(notifyIfHasNewClip, TIMER);
+    setInterval(() => {
+        if(trackingChannels != null) {
+            notifyIfHasNewClip();
+        }
+    }, TIMER);
 };
 
 process.on('SIGINT', persistCache);
